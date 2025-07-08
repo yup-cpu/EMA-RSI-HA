@@ -12,18 +12,18 @@ def load_data(file_path):
     except:
         df = pd.read_csv(file_path, header=None)
 
-    # Nếu có hơn 7 cột thì chỉ lấy 7 cột đầu
+    # Nếu nhiều hơn 7 cột → chỉ lấy 7 cột đầu
     if df.shape[1] > 7:
         df = df.iloc[:, :7]
 
     expected_cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
 
-    # Nếu không khớp tiêu đề hoặc không có tiêu đề thì gán mới
-    if not all(col in df.columns for col in expected_cols):
-        if df.shape[1] == len(expected_cols):
-            df.columns = expected_cols
-        else:
-            raise ValueError(f"❌ File cần đúng 7 cột: {expected_cols}, nhưng nhận được {df.shape[1]} cột.")
+    # Kiểm tra chính xác số lượng cột
+    if df.shape[1] != len(expected_cols):
+        raise ValueError(f"❌ File cần đúng 7 cột: {expected_cols}, nhưng nhận được {df.shape[1]} cột.")
+
+    # Gán lại tên cột
+    df.columns = expected_cols
 
     # Gộp Date + Time
     try:
