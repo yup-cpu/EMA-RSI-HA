@@ -67,18 +67,17 @@ if df is not None:
 
     # Hiển thị bảng kết quả
     if len(idxs) > 0:
-    valid_index = df.index[valid]
+        valid_index = df.index[valid]
 
-    # Kiểm tra an toàn chiều dài
-    if np.any(idxs >= len(valid_index)):
-        st.error("❌ Lỗi: Có chỉ số tín hiệu vượt quá độ dài dữ liệu hợp lệ sau khi lọc. Vui lòng kiểm tra hàm detect_signals_sequential.")
-    else:
-        df_result = pd.DataFrame({
-            "Thời gian": valid_index[idxs],
-            "Loại lệnh": ["BUY" if t == 1 else "SELL" for t in types],
-            "Giá vào lệnh": prices,
-            "Tại điểm": [ ["Open", "High", "Low", "Close"][p] for p in points ]
-        })
-        st.dataframe(df_result)
+        if np.any(idxs >= len(valid_index)):
+            st.error("❌ Lỗi: Có chỉ số tín hiệu vượt quá độ dài dữ liệu hợp lệ sau khi lọc. Vui lòng kiểm tra hàm detect_signals_sequential.")
+        else:
+            df_result = pd.DataFrame({
+                "Thời gian": valid_index[idxs],
+                "Loại lệnh": ["BUY" if t == 1 else "SELL" for t in types],
+                "Giá vào lệnh": prices,
+                "Tại điểm": [ ["Open", "High", "Low", "Close"][p] for p in points ]
+            })
+            st.dataframe(df_result)
     else:
         st.info("ℹ️ Không có tín hiệu nào được phát hiện trong dữ liệu.")
