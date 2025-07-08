@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
-import re
-import json
 from numba import njit
+import re
 
+# ---------------------
+# Tải dữ liệu
+# ---------------------
 @st.cache_data
-def load_data(uploaded_file):
-    df = pd.read_csv(uploaded_file, header=None)
+def load_data(source):
+    df = pd.read_csv(source, header=None)
     df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Spread']
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
     for col in ['Open', 'High', 'Low', 'Close', 'Spread']:
@@ -16,6 +17,9 @@ def load_data(uploaded_file):
     df.set_index('Datetime', inplace=True)
     return df
 
+# ---------------------
+# Các hàm kỹ thuật
+# ---------------------
 @njit
 def compute_ema(close, span):
     n = len(close)
@@ -42,14 +46,14 @@ def compute_rsi(close, period):
             loss[i] = -delta[i]
     avg_gain = np.zeros(n)
     avg_loss = np.zeros(n)
-    avg_gain[period] = np.mean(gain[1:period+1])
-    avg_loss[period] = np.mean(loss[1:period+1])
-    for i in range(period+1, n):
-        avg_gain[i] = (avg_gain[i-1]*(period-1) + gain[i]) / period
-        avg_loss[i] = (avg_loss[i-1]*(period-1) + loss[i]) / period
+    avg_gain[period] = np.mean(gain[1:period + 1])
+    avg_loss[period] = np.mean(loss[1:period + 1])
+    for i in range(period + 1, n):
+        avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gain[i]) / period
+        avg_loss[i] = (avg_loss[i - 1] * (period - 1) + loss[i]) / period
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-    for i in range(period+1):
+    for i in range(period + 1):
         rsi[i] = np.nan
     return rsi
 
@@ -60,7 +64,7 @@ def compute_ha(open_, high, low, close):
     ha_open = np.empty(n)
     ha_open[0] = (open_[0] + close[0]) / 2
     for i in range(1, n):
-        ha_open[i] = (ha_open[i-1] + ha_close[i-1]) / 2
+        ha_open[i] = (ha_open[i - 1] + ha_close[i - 1]) / 2
     ha_color = np.where(ha_close > ha_open, 1, 0)
     return ha_color
 
@@ -106,74 +110,44 @@ def extract_drive_id(text):
             return match.group(1)
     return None
 
-st.title("📈 Phát hiện tín hiệu giao dịch XAUUSD")
+# ---------------------
+# Giao diện Streamlit
+# ---------------------
+st.title("📊 Phân tích tín hiệu giao dịch XAUUSD")
 
-if "df" not in st.session_state:
-    st.session_state.df = None
-if "results" not in st.session_state:
-    st.session_state.results = None
-if "load_state" not in st.session_state:
-    st.session_state.load_state = "idle"
+st.markdown("### 📥 Chọn nguồn dữ liệu")
+data_source = st.radio("Nguồn dữ liệu", ["Tải từ máy", "Google Drive (link hoặc ID)"])
 
-input_ready = False
+uploaded_file = None
+drive_link = ""
 
-with st.form(key="load_form"):
-    data_source = st.selectbox("📅 Chọn nguồn dữ liệu", [
-        "Tải file từ máy",
-        "Từ Google Drive (đường dẫn)",
-        "Từ Google Drive (link hoặc ID)"
-    ])
+if data_source == "Tải từ máy":
+    uploaded_file = st.file_uploader("📂 Chọn file CSV từ máy", type=["csv"])
+elif data_source == "Google Drive (link hoặc ID)":
+    drive_link = st.text_input("🔗 Nhập Google Drive link hoặc ID")
 
-    uploaded_file = None
-    path = ""
-    user_input = ""
+df = None
+if uploaded_file:
+    df = load_data(uploaded_file)
+elif drive_link:
+    try:
+        import gdown
+        file_id = extract_drive_id(drive_link)
+        if file_id:
+            url = f"https://drive.google.com/uc?id={file_id}"
+            local_path = "temp.csv"
+            gdown.download(url, local_path, quiet=True)
+            df = load_data(local_path)
+        else:
+            st.error("❌ Không nhận diện được ID từ link.")
+    except Exception as e:
+        st.error(f"❌ Lỗi tải dữ liệu: {e}")
 
-    if data_source == "Tải file từ máy":
-        uploaded_file = st.file_uploader("📂 Chọn file CSV", type=["csv"])
-        input_ready = uploaded_file is not None
-    elif data_source == "Từ Google Drive (đường dẫn)":
-        path = st.text_input("📂 Nhập đường dẫn file")
-        input_ready = bool(path)
-    elif data_source == "Từ Google Drive (link hoặc ID)":
-        user_input = st.text_input("🔗 Nhập link hoặc ID")
-        input_ready = bool(user_input)
+if df is not None:
+    st.success("✅ Dữ liệu đã được tải thành công.")
+    st.dataframe(df.head())
 
-    submit = st.form_submit_button("📤 Tải và xử lý", disabled=not input_ready)
-
-if submit:
-    st.session_state.load_state = "loading"
-    with st.spinner("Đang tải dữ liệu..."):
-        try:
-            if uploaded_file:
-                df = load_data(uploaded_file)
-                st.session_state.df = df
-                st.success("✅ Đã tải dữ liệu từ máy")
-            elif path and os.path.exists(path):
-                df = load_data(path)
-                st.session_state.df = df
-                st.success("✅ Đã tải từ đường dẫn Drive")
-            elif user_input:
-                file_id = extract_drive_id(user_input)
-                if file_id:
-                    import gdown
-                    url = f"https://drive.google.com/uc?id={file_id}"
-                    local_path = "downloaded_data.csv"
-                    gdown.download(url, local_path, quiet=True)
-                    df = load_data(local_path)
-                    st.session_state.df = df
-                    st.success(f"✅ Tải thành công từ ID: {file_id}")
-                else:
-                    st.error("❌ Không nhận diện được ID")
-            else:
-                st.warning("⚠️ Vui lòng cung cấp dữ liệu")
-        except Exception as e:
-            st.error(f"❌ Lỗi: {e}")
-        finally:
-            st.session_state.load_state = "done"
-
-if st.session_state.df is not None:
-    if st.button("🔍 Phân tích tín hiệu"):
-        df = st.session_state.df
+    if st.button("🚀 Phân tích tín hiệu"):
         open_, high, low, close = df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values
         ema = compute_ema(close, 50)
         rsi = compute_rsi(close, 14)
@@ -181,34 +155,19 @@ if st.session_state.df is not None:
 
         valid = ~np.isnan(rsi)
         valid_index = df.index[valid].to_numpy()
-
         ohlc = np.stack([open_[valid], high[valid], low[valid], close[valid]], axis=1)
         ema, rsi, ha = ema[valid], rsi[valid], ha[valid]
 
         idxs, types, prices, points = detect_signals_sequential(ohlc, ema, rsi, ha)
 
         if len(idxs) == 0:
-            st.warning("⚠️ Không phát hiện tín hiệu")
+            st.warning("⚠️ Không phát hiện tín hiệu.")
         else:
             signal_df = pd.DataFrame({
-                'Datetime': valid_index[idxs],
-                'Type': ['BUY' if t == 1 else 'SELL' for t in types],
-                'Price': prices,
-                'Point (OHLC)': [['O', 'H', 'L', 'C'][p] for p in points]
+                "Datetime": valid_index[idxs],
+                "Type": ['BUY' if t == 1 else 'SELL' for t in types],
+                "Price": prices,
+                "Point (OHLC)": [ ['O', 'H', 'L', 'C'][p] for p in points ]
             })
-
-            st.session_state.results = {
-                "valid_index": valid_index.astype(str).tolist(),
-                "ema": ema.tolist(),
-                "rsi": rsi.tolist(),
-                "ha": ha.tolist(),
-                "signals": {
-                    "indexes": idxs.tolist(),
-                    "types": types.tolist(),
-                    "prices": prices.tolist(),
-                    "points": points.tolist()
-                }
-            }
-
-            st.success(f"✅ Tổng tín hiệu: {len(signal_df)}")
+            st.success(f"✅ Phát hiện {len(signal_df)} tín hiệu.")
             st.dataframe(signal_df)
