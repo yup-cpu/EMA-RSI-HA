@@ -18,7 +18,7 @@ def load_data(file_path):
         df = df.iloc[:, :7]
 
     # Nếu có tiêu đề và cột tên không khớp, chuyển thành không có header
-    expected_cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Spread']
+    expected_cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
     if not all(col in df.columns for col in expected_cols):
         df.columns = expected_cols
     else:
@@ -30,7 +30,7 @@ def load_data(file_path):
     except Exception as e:
         raise ValueError(f"Lỗi khi xử lý cột Date + Time: {e}")
 
-    for col in ['Open', 'High', 'Low', 'Close', 'Spread']:
+    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
     df.dropna(inplace=True)
