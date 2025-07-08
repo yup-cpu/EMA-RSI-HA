@@ -4,9 +4,9 @@ import numpy as np
 from numba import njit
 import re
 
-# ---------------------
-# Tải dữ liệu
-# ---------------------
+# ------------------------
+# Load dữ liệu
+# ------------------------
 @st.cache_data
 def load_data(source):
     df = pd.read_csv(source, header=None)
@@ -17,9 +17,9 @@ def load_data(source):
     df.set_index('Datetime', inplace=True)
     return df
 
-# ---------------------
-# Các hàm kỹ thuật
-# ---------------------
+# ------------------------
+# Kỹ thuật
+# ------------------------
 @njit
 def compute_ema(close, span):
     n = len(close)
@@ -110,41 +110,41 @@ def extract_drive_id(text):
             return match.group(1)
     return None
 
-# ---------------------
+# ------------------------
 # Giao diện Streamlit
-# ---------------------
-st.title("📊 Phân tích tín hiệu giao dịch XAUUSD")
+# ------------------------
+st.title("📊 Phân tích tín hiệu XAUUSD (Không biểu đồ)")
 
-st.markdown("### 📥 Chọn nguồn dữ liệu")
-data_source = st.radio("Nguồn dữ liệu", ["Tải từ máy", "Google Drive (link hoặc ID)"])
+data_source = st.radio("📥 Chọn nguồn dữ liệu", ["Tải từ máy", "Google Drive"])
 
 uploaded_file = None
 drive_link = ""
+df = None
 
 if data_source == "Tải từ máy":
-    uploaded_file = st.file_uploader("📂 Chọn file CSV từ máy", type=["csv"])
-elif data_source == "Google Drive (link hoặc ID)":
-    drive_link = st.text_input("🔗 Nhập Google Drive link hoặc ID")
+    uploaded_file = st.file_uploader("Chọn file CSV", type=["csv"])
+    if uploaded_file:
+        df = load_data(uploaded_file)
+elif data_source == "Google Drive":
+    drive_link = st.text_input("Dán link Google Drive hoặc ID")
+    if drive_link:
+        try:
+            import gdown
+            file_id = extract_drive_id(drive_link)
+            if file_id:
+                url = f"https://drive.google.com/uc?id={file_id}"
+                gdown.download(url, "temp.csv", quiet=True)
+                df = load_data("temp.csv")
+            else:
+                st.error("❌ Không tìm thấy ID hợp lệ trong link.")
+        except Exception as e:
+            st.error(f"❌ Lỗi tải từ Google Drive: {e}")
 
-df = None
-if uploaded_file:
-    df = load_data(uploaded_file)
-elif drive_link:
-    try:
-        import gdown
-        file_id = extract_drive_id(drive_link)
-        if file_id:
-            url = f"https://drive.google.com/uc?id={file_id}"
-            local_path = "temp.csv"
-            gdown.download(url, local_path, quiet=True)
-            df = load_data(local_path)
-        else:
-            st.error("❌ Không nhận diện được ID từ link.")
-    except Exception as e:
-        st.error(f"❌ Lỗi tải dữ liệu: {e}")
-
+# ------------------------
+# Xử lý tín hiệu
+# ------------------------
 if df is not None:
-    st.success("✅ Dữ liệu đã được tải thành công.")
+    st.success("✅ Dữ liệu đã được tải.")
     st.dataframe(df.head())
 
     if st.button("🚀 Phân tích tín hiệu"):
@@ -161,13 +161,13 @@ if df is not None:
         idxs, types, prices, points = detect_signals_sequential(ohlc, ema, rsi, ha)
 
         if len(idxs) == 0:
-            st.warning("⚠️ Không phát hiện tín hiệu.")
+            st.warning("⚠️ Không có tín hiệu nào.")
         else:
             signal_df = pd.DataFrame({
                 "Datetime": valid_index[idxs],
                 "Type": ['BUY' if t == 1 else 'SELL' for t in types],
                 "Price": prices,
-                "Point (OHLC)": [ ['O', 'H', 'L', 'C'][p] for p in points ]
+                "Point": [ ['O', 'H', 'L', 'C'][p] for p in points ]
             })
             st.success(f"✅ Phát hiện {len(signal_df)} tín hiệu.")
             st.dataframe(signal_df)
