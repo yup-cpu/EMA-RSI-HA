@@ -16,27 +16,27 @@ def extract_drive_id(url_or_id: str):
         raise ValueError("❌ Không thể trích xuất ID từ đường dẫn Google Drive.")
     return url_or_id.strip()
 
-def load_data(file_path_or_buffer):
+def load_data(file_path):
+    # Thử đọc với tiêu đề, nếu sai sẽ đọc không có tiêu đề
     try:
-        df = pd.read_csv(file_path_or_buffer)
+        df = pd.read_csv(file_path)
+        if df.shape[1] != 7 or not all(col in df.columns for col in ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']):
+            raise ValueError("Không đúng định dạng tiêu đề, thử đọc lại với header=None")
     except:
-        df = pd.read_csv(file_path_or_buffer, header=None)
+        df = pd.read_csv(file_path, header=None)
+        if df.shape[1] >= 7:
+            df = df.iloc[:, :7]
+            df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
+        else:
+            raise ValueError(f"❌ File cần đủ 7 cột: ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume'], nhưng nhận được {df.shape[1]} cột.")
 
-    # Nếu nhiều hơn 7 cột → chỉ lấy 7 cột đầu
-    if df.shape[1] > 7:
-        df = df.iloc[:, :7]
-
-    expected_cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
-    if df.shape[1] != len(expected_cols):
-        raise ValueError(f"❌ File cần đúng 7 cột: {expected_cols}, nhưng nhận được {df.shape[1]} cột.")
-    
-    df.columns = expected_cols
-
+    # Gộp Date + Time thành Datetime
     try:
         df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
     except Exception as e:
         raise ValueError(f"❌ Lỗi khi xử lý Date + Time: {e}")
 
+    # Ép kiểu số
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
