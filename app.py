@@ -1,19 +1,15 @@
+# app.py – Streamlit App
 import streamlit as st
 import pandas as pd
 import numpy as np
 import io
 import requests
 
-# Import các hàm từ core.py
-from core import load_data, compute_ema, compute_rsi, compute_ha, detect_signals_sequential
+from core import load_data, compute_ema, compute_rsi, compute_ha, detect_signals_sequential, extract_drive_id
 
-# ----------------------------
-# Giao diện Streamlit
-# ----------------------------
 st.set_page_config(page_title="Phân tích tín hiệu giao dịch", layout="wide")
 st.title("📈 Phân tích tín hiệu BUY / SELL")
 
-# Chọn phương thức tải dữ liệu
 method = st.radio("📁 Chọn cách tải dữ liệu:", ["Tải từ máy (Upload)", "Nhập đường dẫn (URL)", "Google Drive ID"])
 uploaded_file = None
 url = ""
@@ -26,11 +22,14 @@ elif method == "Nhập đường dẫn (URL)":
     url = st.text_input("🔗 Nhập URL tới file CSV:")
 
 elif method == "Google Drive ID":
-    drive_id = st.text_input("🔑 Nhập Google Drive file ID:")
-    if drive_id:
-        url = f"https://drive.google.com/uc?id={drive_id}"
+    drive_input = st.text_input("🔑 Dán link hoặc ID Google Drive:")
+    if drive_input:
+        try:
+            drive_id = extract_drive_id(drive_input)
+            url = f"https://drive.google.com/uc?id={drive_id}"
+        except Exception as e:
+            st.error(str(e))
 
-# Nút xử lý tải file
 if st.button("📥 Load File"):
     try:
         if method == "Tải từ máy (Upload)" and uploaded_file:
@@ -43,7 +42,6 @@ if st.button("📥 Load File"):
     except Exception as e:
         st.error(f"❌ Lỗi khi tải hoặc xử lý file: {e}")
 
-# Phân tích sau khi tải thành công
 if df is not None:
     st.success("✅ File đã được tải thành công!")
     st.dataframe(df.head())
@@ -65,12 +63,10 @@ if df is not None:
     col2.metric("🔼 BUY", int(np.sum(types == 1)))
     col3.metric("🔽 SELL", int(np.sum(types == 0)))
 
-    # Hiển thị bảng kết quả
     if len(idxs) > 0:
         valid_index = df.index[valid]
-
         if np.any(idxs >= len(valid_index)):
-            st.error("❌ Lỗi: Có chỉ số tín hiệu vượt quá độ dài dữ liệu hợp lệ sau khi lọc. Vui lòng kiểm tra hàm detect_signals_sequential.")
+            st.error("❌ Lỗi: Có tín hiệu vượt quá độ dài dữ liệu hợp lệ.")
         else:
             df_result = pd.DataFrame({
                 "Thời gian": valid_index[idxs],
@@ -80,4 +76,4 @@ if df is not None:
             })
             st.dataframe(df_result)
     else:
-        st.info("ℹ️ Không có tín hiệu nào được phát hiện trong dữ liệu.")
+        st.info("ℹ️ Không có tín hiệu nào được phát hiện.")
