@@ -1,37 +1,42 @@
-# =======================
-# 📦 core.py – Phần xử lý logic
-# =======================
+# core.py – Xử lý dữ liệu và tín hiệu
 import pandas as pd
 import numpy as np
 from numba import njit
 
+def extract_drive_id(url_or_id: str):
+    """
+    Lọc ra Drive file ID từ cả ID hoặc link đầy đủ.
+    """
+    if "drive.google.com" in url_or_id:
+        # Ví dụ: https://drive.google.com/file/d/1abcXYZ/view?usp=sharing
+        parts = url_or_id.split("/")
+        if "d" in parts:
+            idx = parts.index("d")
+            return parts[idx + 1]
+        raise ValueError("❌ Không thể trích xuất ID từ đường dẫn Google Drive.")
+    return url_or_id.strip()
 
-def load_data(file_path):
+def load_data(file_path_or_buffer):
     try:
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path_or_buffer)
     except:
-        df = pd.read_csv(file_path, header=None)
+        df = pd.read_csv(file_path_or_buffer, header=None)
 
     # Nếu nhiều hơn 7 cột → chỉ lấy 7 cột đầu
     if df.shape[1] > 7:
         df = df.iloc[:, :7]
 
     expected_cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
-
-    # Kiểm tra chính xác số lượng cột
     if df.shape[1] != len(expected_cols):
         raise ValueError(f"❌ File cần đúng 7 cột: {expected_cols}, nhưng nhận được {df.shape[1]} cột.")
-
-    # Gán lại tên cột
+    
     df.columns = expected_cols
 
-    # Gộp Date + Time
     try:
         df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
     except Exception as e:
         raise ValueError(f"❌ Lỗi khi xử lý Date + Time: {e}")
 
-    # Ép kiểu số
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
@@ -48,7 +53,6 @@ def compute_ema(close, span):
     for i in range(1, n):
         ema[i] = alpha * close[i] + (1 - alpha) * ema[i - 1]
     return ema
-
 
 @njit
 def compute_rsi(close, period):
@@ -82,7 +86,6 @@ def compute_rsi(close, period):
         rsi[i] = np.nan
     return rsi
 
-
 @njit
 def compute_ha(open_, high, low, close):
     n = len(open_)
@@ -93,7 +96,6 @@ def compute_ha(open_, high, low, close):
         ha_open[i] = (ha_open[i - 1] + ha_close[i - 1]) / 2
     ha_color = np.where(ha_close > ha_open, 1, 0)
     return ha_color
-
 
 @njit
 def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
@@ -108,18 +110,18 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     for i in range(1, n):
         if np.isnan(rsi[i]):
             continue
-        for j in range(4):
+        for j in range(4):  # O, H, L, C
             price = ohlc[i, j]
             if price > ema50[i] and rsi_lo < rsi[i] < rsi_hi and ha[i - 1] == 0 and ha[i] == 1:
                 idxs[count] = i
-                types[count] = 1
+                types[count] = 1  # BUY
                 prices[count] = price
                 points[count] = j
                 count += 1
                 break
             elif price < ema50[i] and rsi_lo < rsi[i] < rsi_hi and ha[i - 1] == 1 and ha[i] == 0:
                 idxs[count] = i
-                types[count] = 0
+                types[count] = 0  # SELL
                 prices[count] = price
                 points[count] = j
                 count += 1
