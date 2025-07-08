@@ -7,28 +7,25 @@ from numba import njit
 
 
 def load_data(file_path):
-    # Đọc file với hoặc không có header
     try:
         df = pd.read_csv(file_path)
     except:
         df = pd.read_csv(file_path, header=None)
 
-    # Nếu nhiều hơn 7 cột, chỉ lấy 7 cột đầu
     if df.shape[1] > 7:
         df = df.iloc[:, :7]
 
-    # Nếu có tiêu đề và cột tên không khớp, chuyển thành không có header
     expected_cols = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
-    if not all(col in df.columns for col in expected_cols):
-        df.columns = expected_cols
-    else:
-        df = df[expected_cols]
+    if list(df.columns) != expected_cols:
+        if df.shape[1] == len(expected_cols):
+            df.columns = expected_cols
+        else:
+            raise ValueError(f"❌ File cần đúng 7 cột: {expected_cols}, nhưng nhận được {df.shape[1]} cột.")
 
-    # Gộp Date + Time
     try:
         df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
     except Exception as e:
-        raise ValueError(f"Lỗi khi xử lý cột Date + Time: {e}")
+        raise ValueError(f"Lỗi khi xử lý Date + Time: {e}")
 
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -36,7 +33,6 @@ def load_data(file_path):
     df.dropna(inplace=True)
     df.set_index('Datetime', inplace=True)
     return df
-
 
 @njit
 def compute_ema(close, span):
