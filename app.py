@@ -169,7 +169,7 @@ try:
         if not st.session_state.confirmed and st.button("📊 Xác nhận & Phân tích", disabled=disabled, key="btn_upload"):
             st.session_state.df = load_data_safe(uploaded_file)
             st.session_state.confirmed = True
-            st.experimental_rerun()
+            st.rerun()
 
     elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
@@ -186,7 +186,7 @@ try:
                     response.raise_for_status()
                     st.session_state.df = load_data_safe(io.BytesIO(response.content))
                 st.session_state.confirmed = True
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
 
@@ -196,7 +196,7 @@ try:
         if not st.session_state.confirmed and st.button("📑 Phân tích nội dung", disabled=disabled, key="btn_paste"):
             st.session_state.df = load_data_safe(io.StringIO(content))
             st.session_state.confirmed = True
-            st.experimental_rerun()
+            st.rerun()
 
 except Exception as e:
     st.error(f"❌ Lỗi tổng quát: {str(e)}")
