@@ -73,19 +73,39 @@ def compute_ema(close, span):
 @njit
 def compute_rsi_raw(close, period):
     n = len(close)
-    delta = np.diff(close, prepend=close[0])
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
+    delta = np.empty(n)
+    delta[0] = 0
+    for i in range(1, n):
+        delta[i] = close[i] - close[i - 1]
+
+    gain = np.empty(n)
+    loss = np.empty(n)
+    for i in range(n):
+        if delta[i] > 0:
+            gain[i] = delta[i]
+            loss[i] = 0
+        else:
+            gain[i] = 0
+            loss[i] = -delta[i]
+
     avg_gain = np.zeros(n)
     avg_loss = np.zeros(n)
-    avg_gain[period] = np.mean(gain[1:period+1])
-    avg_loss[period] = np.mean(loss[1:period+1])
-    for i in range(period+1, n):
-        avg_gain[i] = (avg_gain[i-1]*(period-1) + gain[i]) / period
-        avg_loss[i] = (avg_loss[i-1]*(period-1) + loss[i]) / period
+
+    sum_gain = 0.0
+    sum_loss = 0.0
+    for i in range(1, period + 1):
+        sum_gain += gain[i]
+        sum_loss += loss[i]
+    avg_gain[period] = sum_gain / period
+    avg_loss[period] = sum_loss / period
+
+    for i in range(period + 1, n):
+        avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gain[i]) / period
+        avg_loss[i] = (avg_loss[i - 1] * (period - 1) + loss[i]) / period
+
     rs = avg_gain / (avg_loss + 1e-10)
-    rsi = 100 - (100 / (1 + rs))
-    return rsi  # ❌ KHÔNG gán np.nan ở đây
+    rsi = 100.0 - (100.0 / (1.0 + rs))
+    return rsi
 
 @njit
 def compute_ha(open_, high, low, close):
