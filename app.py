@@ -128,7 +128,7 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     count = 0
 
     for i in range(1, n):
-        if rsi[i] != rsi[i]:  # NaN check
+        if rsi[i] != rsi[i]:
             continue
         for j in range(4):
             price = ohlc[i, j]
@@ -166,16 +166,15 @@ try:
     if option == "📂 Tải lên file CSV":
         uploaded_file = st.file_uploader("Tải file CSV dữ liệu (không có header):", type=["csv"])
         disabled = not uploaded_file or st.session_state.confirmed
-        clicked = st.button("📊 Xác nhận & Phân tích", disabled=disabled, key="btn_upload")
-        if clicked and uploaded_file:
+        if not st.session_state.confirmed and st.button("📊 Xác nhận & Phân tích", disabled=disabled, key="btn_upload"):
             st.session_state.df = load_data_safe(uploaded_file)
             st.session_state.confirmed = True
+            st.experimental_rerun()
 
     elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
         disabled = not url or st.session_state.confirmed
-        clicked = st.button("📥 Tải & Phân tích", disabled=disabled, key="btn_link")
-        if clicked and url:
+        if not st.session_state.confirmed and st.button("📥 Tải & Phân tích", disabled=disabled, key="btn_link"):
             try:
                 norm_url = normalize_url(url)
                 if "drive.google.com" in url:
@@ -187,16 +186,17 @@ try:
                     response.raise_for_status()
                     st.session_state.df = load_data_safe(io.BytesIO(response.content))
                 st.session_state.confirmed = True
+                st.experimental_rerun()
             except Exception as e:
                 st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
 
     elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
         disabled = not content or st.session_state.confirmed
-        clicked = st.button("📑 Phân tích nội dung", disabled=disabled, key="btn_paste")
-        if clicked and content:
+        if not st.session_state.confirmed and st.button("📑 Phân tích nội dung", disabled=disabled, key="btn_paste"):
             st.session_state.df = load_data_safe(io.StringIO(content))
             st.session_state.confirmed = True
+            st.experimental_rerun()
 
 except Exception as e:
     st.error(f"❌ Lỗi tổng quát: {str(e)}")
