@@ -1,14 +1,36 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import requests
 from numba import njit
 import io
 
 # ------------------------
+# Hàm chuẩn hóa link
+# ------------------------
+def normalize_url(url):
+    if "drive.google.com" in url:
+        file_id = None
+        if "id=" in url:
+            file_id = url.split("id=")[1].split("&")[0]
+        elif "/d/" in url:
+            file_id = url.split("/d/")[1].split("/")[0]
+        if file_id:
+            return f"https://drive.google.com/uc?export=download&id={file_id}"
+        else:
+            raise ValueError("Không thể tìm thấy ID hợp lệ từ Google Drive link.")
+    elif "dropbox.com" in url:
+        return url.replace("?dl=0", "?dl=1")
+    elif url.endswith(".csv"):
+        return url
+    else:
+        raise ValueError("Không nhận dạng được loại link hợp lệ.")
+
+# ------------------------
 # Load dữ liệu
 # ------------------------
-def load_data(uploaded_file):
-    df = pd.read_csv(uploaded_file, header=None)
+def load_data(file_like):
+    df = pd.read_csv(file_like, header=None)
     df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
@@ -36,7 +58,6 @@ def compute_rsi(close, period):
     delta[0] = 0
     for i in range(1, n):
         delta[i] = close[i] - close[i - 1]
-
     gain = np.zeros(n)
     loss = np.zeros(n)
     for i in range(1, n):
@@ -44,19 +65,15 @@ def compute_rsi(close, period):
             gain[i] = delta[i]
         else:
             loss[i] = -delta[i]
-
     avg_gain = np.zeros(n)
     avg_loss = np.zeros(n)
     avg_gain[period] = np.mean(gain[1:period + 1])
     avg_loss[period] = np.mean(loss[1:period + 1])
-
     for i in range(period + 1, n):
         avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gain[i]) / period
         avg_loss[i] = (avg_loss[i - 1] * (period - 1) + loss[i]) / period
-
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-
     for i in range(period + 1):
         rsi[i] = np.nan
     return rsi
@@ -81,7 +98,6 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     prices = np.empty(max_signals, dtype=np.float64)
     points = np.empty(max_signals, dtype=np.int8)
     count = 0
-
     for i in range(1, n):
         if np.isnan(rsi[i]):
             continue
@@ -108,11 +124,28 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
 # ------------------------
 st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
-uploaded_file = st.file_uploader("📂 Tải lên file CSV dữ liệu (không có header):", type=["csv"])
+uploaded_file = st.file_uploader("📂 Tải file CSV dữ liệu (không có header):", type=["csv"])
+url_input = st.text_input("🌐 Hoặc nhập link file CSV (Google Drive / Dropbox / .csv trực tiếp):")
 
-if uploaded_file is not None:
-    df = load_data(uploaded_file)
+df = None
 
+try:
+    if uploaded_file is not None:
+        df = load_data(uploaded_file)
+        st.success("✅ Đọc dữ liệu từ file tải lên thành công.")
+    elif url_input:
+        norm_url = normalize_url(url_input)
+        response = requests.get(norm_url)
+        response.raise_for_status()
+        df = load_data(io.StringIO(response.content.decode("utf-8")))
+        st.success("✅ Đọc dữ liệu từ link thành công.")
+except Exception as e:
+    st.error(f"❌ Lỗi khi đọc dữ liệu: {e}")
+
+# ------------------------
+# Tính toán & Hiển thị
+# ------------------------
+if df is not None:
     open_, high, low, close = df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values
     ema = compute_ema(close, 50)
     rsi = compute_rsi(close, 14)
@@ -128,7 +161,6 @@ if uploaded_file is not None:
     st.info(f"🔼 BUY: {np.sum(types == 1)}")
     st.warning(f"🔽 SELL: {np.sum(types == 0)}")
 
-    # Hiển thị bảng tín hiệu
     signal_df = pd.DataFrame({
         'Datetime': df.index[valid][idxs],
         'Type': np.where(types == 1, 'BUY', 'SELL'),
