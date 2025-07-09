@@ -71,7 +71,7 @@ def compute_ema(close, span):
     return ema
 
 @njit
-def compute_rsi(close, period):
+def compute_rsi_raw(close, period):
     n = len(close)
     delta = np.diff(close, prepend=close[0])
     gain = np.where(delta > 0, delta, 0)
@@ -85,9 +85,7 @@ def compute_rsi(close, period):
         avg_loss[i] = (avg_loss[i-1]*(period-1) + loss[i]) / period
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-    for i in range(period + 1):
-        rsi[i] = np.nan
-    return rsi
+    return rsi  # ❌ KHÔNG gán np.nan ở đây
 
 @njit
 def compute_ha(open_, high, low, close):
@@ -111,7 +109,7 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     count = 0
 
     for i in range(1, n):
-        if np.isnan(rsi[i]):
+        if rsi[i] != rsi[i]:  # kiểm tra NaN
             continue
         for j in range(4):
             price = ohlc[i, j]
@@ -169,7 +167,9 @@ except Exception as e:
 if df is not None:
     open_, high, low, close = df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values
     ema = compute_ema(close, 50)
-    rsi = compute_rsi(close, 14)
+    rsi = compute_rsi_raw(close, 14)
+    rsi[:15] = np.nan  # Gán np.nan bên ngoài Numba
+
     ha = compute_ha(open_, high, low, close)
 
     valid = ~np.isnan(rsi)
