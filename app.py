@@ -7,7 +7,7 @@ import io
 import gdown
 
 # ------------------------
-# Hàm chuẩn hóa link
+# Chuẩn hóa link
 # ------------------------
 def normalize_url(url):
     if "drive.google.com" in url:
@@ -26,7 +26,7 @@ def normalize_url(url):
         raise ValueError("❌ Link không hợp lệ. Hãy nhập link Google Drive, Dropbox hoặc file .csv.")
 
 # ------------------------
-# Load dữ liệu an toàn
+# Load dữ liệu
 # ------------------------
 def load_data_safe(file_like):
     try:
@@ -37,10 +37,6 @@ def load_data_safe(file_like):
             content = content.decode("utf-8")
         else:
             raise ValueError("❌ Không thể giải mã nội dung file.")
-
-    preview = content.strip().split("\n")
-    if len(preview) > 0:
-        st.code("\n".join(preview[:5]), language='text')
 
     try:
         df = pd.read_csv(io.StringIO(content), header=None)
@@ -62,7 +58,7 @@ def load_data_safe(file_like):
         raise ValueError(f"❌ Lỗi xử lý dữ liệu: {str(e)}")
 
 # ------------------------
-# Các chỉ báo kỹ thuật
+# Chỉ báo kỹ thuật
 # ------------------------
 @njit
 def compute_ema(close, span):
@@ -89,7 +85,8 @@ def compute_rsi(close, period):
         avg_loss[i] = (avg_loss[i-1]*(period-1) + loss[i]) / period
     rs = avg_gain / (avg_loss + 1e-10)
     rsi = 100 - (100 / (1 + rs))
-    rsi[:period+1] = np.nan
+    for i in range(period + 1):
+        rsi[i] = np.nan
     return rsi
 
 @njit
