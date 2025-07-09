@@ -149,34 +149,37 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
 st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
 option = st.radio("📥 Chọn cách nhập dữ liệu:", ["📂 Tải lên file CSV", "🌐 Link đến file CSV", "📝 Dán nội dung CSV"])
-
 df = None
+
 try:
     if option == "📂 Tải lên file CSV":
         uploaded_file = st.file_uploader("Tải file CSV dữ liệu (không có header):", type=["csv"])
         if uploaded_file:
-            df = load_data_safe(uploaded_file)
+            if st.button("📊 Xác nhận & Phân tích"):
+                df = load_data_safe(uploaded_file)
 
     elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
         if url:
-            try:
-                norm_url = normalize_url(url)
-                if "drive.google.com" in url:
-                    gdown.download(norm_url, "temp.csv", quiet=False)
-                    with open("temp.csv", "rb") as f:
-                        df = load_data_safe(f)
-                else:
-                    response = requests.get(norm_url)
-                    response.raise_for_status()
-                    df = load_data_safe(io.BytesIO(response.content))
-            except Exception as e:
-                st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
+            if st.button("📥 Tải & Phân tích"):
+                try:
+                    norm_url = normalize_url(url)
+                    if "drive.google.com" in url:
+                        gdown.download(norm_url, "temp.csv", quiet=False)
+                        with open("temp.csv", "rb") as f:
+                            df = load_data_safe(f)
+                    else:
+                        response = requests.get(norm_url)
+                        response.raise_for_status()
+                        df = load_data_safe(io.BytesIO(response.content))
+                except Exception as e:
+                    st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
 
     elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
         if content:
-            df = load_data_safe(io.StringIO(content))
+            if st.button("📑 Phân tích nội dung"):
+                df = load_data_safe(io.StringIO(content))
 
 except Exception as e:
     st.error(f"❌ Lỗi tổng quát: {str(e)}")
