@@ -10,15 +10,13 @@ import io
 # ------------------------
 def normalize_url(url):
     if "drive.google.com" in url:
-        file_id = None
         if "id=" in url:
             file_id = url.split("id=")[1].split("&")[0]
         elif "/d/" in url:
             file_id = url.split("/d/")[1].split("/")[0]
-        if file_id:
-            return f"https://drive.google.com/uc?export=download&id={file_id}"
         else:
             raise ValueError("❌ Không tìm thấy ID hợp lệ từ Google Drive link.")
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
     elif "dropbox.com" in url:
         return url.replace("?dl=0", "?dl=1")
     elif url.endswith(".csv"):
@@ -30,9 +28,23 @@ def normalize_url(url):
 # Load dữ liệu an toàn
 # ------------------------
 def load_data_safe(file_like):
-    df = pd.read_csv(file_like, header=None)
+    try:
+        content = file_like.read().decode("utf-8")
+    except:
+        content = file_like.read()
+        if isinstance(content, bytes):
+            content = content.decode("utf-8")
+
+    # Hiển thị thử đoạn đầu nếu lỗi
+    preview = content.strip().split("\n")
+    if len(preview) > 0:
+        st.code("\n".join(preview[:5]), language='text')
+
+    df = pd.read_csv(io.StringIO(content), header=None)
+
     if df.shape[1] != 7:
-        raise ValueError(f"❌ Dữ liệu có {df.shape[1]} cột, nhưng cần đúng 7 cột: Date, Time, Open, High, Low, Close, Volume.")
+        raise ValueError(f"❌ Dữ liệu có {df.shape[1]} cột, cần đúng 7 cột: Date, Time, Open, High, Low, Close, Volume.")
+
     df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M', errors='coerce')
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
@@ -128,7 +140,7 @@ try:
             norm_url = normalize_url(url)
             response = requests.get(norm_url)
             response.raise_for_status()
-            df = load_data_safe(io.StringIO(response.content.decode("utf-8")))
+            df = load_data_safe(io.BytesIO(response.content))
 
     elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
@@ -136,7 +148,7 @@ try:
             df = load_data_safe(io.StringIO(content))
 
 except Exception as e:
-    st.error(str(e))
+    st.error(f"❌ Lỗi: {str(e)}")
 
 # ------------------------
 # Phân tích và hiển thị
