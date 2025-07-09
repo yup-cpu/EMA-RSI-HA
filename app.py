@@ -144,11 +144,10 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     return idxs[:count], types[:count], prices[:count], points[:count]
 
 # ------------------------
-# Giao diện Streamlit (có session_state để chặn phân tích lại)
+# Giao diện Streamlit
 # ------------------------
 st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
-# Khởi tạo session_state
 if "confirmed" not in st.session_state:
     st.session_state.confirmed = False
 if "data_source" not in st.session_state:
@@ -158,7 +157,6 @@ if "df" not in st.session_state:
 
 option = st.radio("📥 Chọn cách nhập dữ liệu:", ["📂 Tải lên file CSV", "🌐 Link đến file CSV", "📝 Dán nội dung CSV"])
 
-# Nếu người dùng đổi lựa chọn nguồn dữ liệu → reset lại xác nhận
 if st.session_state.data_source != option:
     st.session_state.confirmed = False
     st.session_state.df = None
@@ -196,17 +194,17 @@ try:
 
 except Exception as e:
     st.error(f"❌ Lỗi tổng quát: {str(e)}")
-if st.session_state.confirmed and st.session_state.df is not None:
-    df = st.session_state.df
 
 # ------------------------
-# Phân tích và hiển thị
+# Phân tích và hiển thị kết quả
 # ------------------------
-if df is not None:
+if "df" in st.session_state and st.session_state.df is not None and st.session_state.confirmed:
+    df = st.session_state.df
+
     open_, high, low, close = df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values
     ema = compute_ema(close, 50)
     rsi = compute_rsi_raw(close, 14)
-    rsi[:15] = np.nan  # Gán np.nan bên ngoài Numba
+    rsi[:15] = np.nan  # Gán NaN thủ công
 
     ha = compute_ha(open_, high, low, close)
 
@@ -228,3 +226,5 @@ if df is not None:
     })
 
     st.dataframe(signal_df, use_container_width=True)
+else:
+    st.info("📌 Vui lòng tải dữ liệu và nhấn xác nhận để bắt đầu phân tích.")
