@@ -147,6 +147,7 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
 # ------------------------
 st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
+# Trạng thái mặc định
 if "confirmed" not in st.session_state:
     st.session_state.confirmed = False
 if "data_source" not in st.session_state:
@@ -156,7 +157,7 @@ if "df" not in st.session_state:
 
 option = st.radio("📥 Chọn cách nhập dữ liệu:", ["📂 Tải lên file CSV", "🌐 Link đến file CSV", "📝 Dán nội dung CSV"])
 
-# Reset lại trạng thái nếu đổi nguồn dữ liệu
+# Reset nếu đổi nguồn
 if st.session_state.data_source != option:
     st.session_state.confirmed = False
     st.session_state.df = None
@@ -165,16 +166,15 @@ if st.session_state.data_source != option:
 try:
     if option == "📂 Tải lên file CSV":
         uploaded_file = st.file_uploader("Tải file CSV dữ liệu (không có header):", type=["csv"])
-        disabled = not uploaded_file or st.session_state.confirmed
-        if not st.session_state.confirmed and st.button("📊 Xác nhận & Phân tích", disabled=disabled, key="btn_upload"):
-            st.session_state.df = load_data_safe(uploaded_file)
-            st.session_state.confirmed = True
-            st.rerun()
+        if st.button("📊 Xác nhận & Phân tích", disabled=st.session_state.confirmed, key="btn_upload"):
+            if uploaded_file is not None:
+                st.session_state.df = load_data_safe(uploaded_file)
+                st.session_state.confirmed = True
+                st.rerun()
 
     elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
-        disabled = not url or st.session_state.confirmed
-        if not st.session_state.confirmed and st.button("📥 Tải & Phân tích", disabled=disabled, key="btn_link"):
+        if st.button("📥 Tải & Phân tích", disabled=st.session_state.confirmed, key="btn_link"):
             try:
                 norm_url = normalize_url(url)
                 if "drive.google.com" in url:
@@ -192,18 +192,20 @@ try:
 
     elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
-        disabled = not content or st.session_state.confirmed
-        if not st.session_state.confirmed and st.button("📑 Phân tích nội dung", disabled=disabled, key="btn_paste"):
-            st.session_state.df = load_data_safe(io.StringIO(content))
-            st.session_state.confirmed = True
-            st.rerun()
+        if st.button("📑 Phân tích nội dung", disabled=st.session_state.confirmed, key="btn_paste"):
+            if content:
+                st.session_state.df = load_data_safe(io.StringIO(content))
+                st.session_state.confirmed = True
+                st.rerun()
 
 except Exception as e:
     st.error(f"❌ Lỗi tổng quát: {str(e)}")
 
+# Nếu đã xác nhận thành công
 if st.session_state.confirmed:
     st.markdown("✅ **Dữ liệu đã được phân tích. Để phân tích lại, hãy thay đổi nguồn dữ liệu.**")
 
+# Nếu có dữ liệu
 if st.session_state.df is not None and st.session_state.confirmed:
     df = st.session_state.df
 
@@ -211,7 +213,6 @@ if st.session_state.df is not None and st.session_state.confirmed:
     ema = compute_ema(close, 50)
     rsi = compute_rsi_raw(close, 14)
     rsi[:15] = np.nan
-
     ha = compute_ha(open_, high, low, close)
 
     valid = ~np.isnan(rsi)
