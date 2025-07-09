@@ -4,6 +4,7 @@ import numpy as np
 from numba import njit
 import requests
 import io
+import gdown
 
 # ------------------------
 # Hàm chuẩn hóa link
@@ -34,24 +35,31 @@ def load_data_safe(file_like):
         content = file_like.read()
         if isinstance(content, bytes):
             content = content.decode("utf-8")
+        else:
+            raise ValueError("❌ Không thể giải mã nội dung file.")
 
-    # Hiển thị thử đoạn đầu nếu lỗi
     preview = content.strip().split("\n")
     if len(preview) > 0:
         st.code("\n".join(preview[:5]), language='text')
 
-    df = pd.read_csv(io.StringIO(content), header=None)
+    try:
+        df = pd.read_csv(io.StringIO(content), header=None)
+    except Exception as e:
+        raise ValueError(f"❌ Lỗi khi đọc CSV: {str(e)}")
 
     if df.shape[1] != 7:
         raise ValueError(f"❌ Dữ liệu có {df.shape[1]} cột, cần đúng 7 cột: Date, Time, Open, High, Low, Close, Volume.")
 
-    df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
-    df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M', errors='coerce')
-    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-    df.dropna(subset=['Datetime'], inplace=True)
-    df.set_index('Datetime', inplace=True)
-    return df
+    try:
+        df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
+        df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M', errors='coerce')
+        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df.dropna(subset=['Datetime'], inplace=True)
+        df.set_index('Datetime', inplace=True)
+        return df
+    except Exception as e:
+        raise ValueError(f"❌ Lỗi xử lý dữ liệu: {str(e)}")
 
 # ------------------------
 # Các chỉ báo kỹ thuật
@@ -137,10 +145,18 @@ try:
     elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
         if url:
-            norm_url = normalize_url(url)
-            response = requests.get(norm_url)
-            response.raise_for_status()
-            df = load_data_safe(io.BytesIO(response.content))
+            try:
+                norm_url = normalize_url(url)
+                if "drive.google.com" in url:
+                    gdown.download(norm_url, "temp.csv", quiet=False)
+                    with open("temp.csv", "rb") as f:
+                        df = load_data_safe(f)
+                else:
+                    response = requests.get(norm_url)
+                    response.raise_for_status()
+                    df = load_data_safe(io.BytesIO(response.content))
+            except Exception as e:
+                st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
 
     elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
@@ -148,7 +164,7 @@ try:
             df = load_data_safe(io.StringIO(content))
 
 except Exception as e:
-    st.error(f"❌ Lỗi: {str(e)}")
+    st.error(f"❌ Lỗi tổng quát: {str(e)}")
 
 # ------------------------
 # Phân tích và hiển thị
