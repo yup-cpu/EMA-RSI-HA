@@ -133,7 +133,7 @@ if uploaded_file is not None:
         'Datetime': df.index[valid][idxs],
         'Type': np.where(types == 1, 'BUY', 'SELL'),
         'Price': prices,
-        'Point': ['Open', 'High', 'Low', 'Close'][0:][points]
+        'Point': np.array(['Open', 'High', 'Low', 'Close'])[points]
     })
 
     st.dataframe(signal_df, use_container_width=True)
