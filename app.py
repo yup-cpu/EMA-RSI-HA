@@ -144,45 +144,60 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     return idxs[:count], types[:count], prices[:count], points[:count]
 
 # ------------------------
-# Giao diện Streamlit
+# Giao diện Streamlit (có session_state để chặn phân tích lại)
 # ------------------------
 st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
+# Khởi tạo session_state
+if "confirmed" not in st.session_state:
+    st.session_state.confirmed = False
+if "data_source" not in st.session_state:
+    st.session_state.data_source = None
+if "df" not in st.session_state:
+    st.session_state.df = None
+
 option = st.radio("📥 Chọn cách nhập dữ liệu:", ["📂 Tải lên file CSV", "🌐 Link đến file CSV", "📝 Dán nội dung CSV"])
-df = None
+
+# Nếu người dùng đổi lựa chọn nguồn dữ liệu → reset lại xác nhận
+if st.session_state.data_source != option:
+    st.session_state.confirmed = False
+    st.session_state.df = None
+    st.session_state.data_source = option
 
 try:
     if option == "📂 Tải lên file CSV":
         uploaded_file = st.file_uploader("Tải file CSV dữ liệu (không có header):", type=["csv"])
-        if uploaded_file:
-            if st.button("📊 Xác nhận & Phân tích"):
-                df = load_data_safe(uploaded_file)
+        if uploaded_file and st.button("📊 Xác nhận & Phân tích"):
+            st.session_state.df = load_data_safe(uploaded_file)
+            st.session_state.confirmed = True
 
     elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
-        if url:
-            if st.button("📥 Tải & Phân tích"):
-                try:
-                    norm_url = normalize_url(url)
-                    if "drive.google.com" in url:
-                        gdown.download(norm_url, "temp.csv", quiet=False)
-                        with open("temp.csv", "rb") as f:
-                            df = load_data_safe(f)
-                    else:
-                        response = requests.get(norm_url)
-                        response.raise_for_status()
-                        df = load_data_safe(io.BytesIO(response.content))
-                except Exception as e:
-                    st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
+        if url and st.button("📥 Tải & Phân tích"):
+            try:
+                norm_url = normalize_url(url)
+                if "drive.google.com" in url:
+                    gdown.download(norm_url, "temp.csv", quiet=False)
+                    with open("temp.csv", "rb") as f:
+                        st.session_state.df = load_data_safe(f)
+                else:
+                    response = requests.get(norm_url)
+                    response.raise_for_status()
+                    st.session_state.df = load_data_safe(io.BytesIO(response.content))
+                st.session_state.confirmed = True
+            except Exception as e:
+                st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
 
     elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
-        if content:
-            if st.button("📑 Phân tích nội dung"):
-                df = load_data_safe(io.StringIO(content))
+        if content and st.button("📑 Phân tích nội dung"):
+            st.session_state.df = load_data_safe(io.StringIO(content))
+            st.session_state.confirmed = True
 
 except Exception as e:
     st.error(f"❌ Lỗi tổng quát: {str(e)}")
+if st.session_state.confirmed and st.session_state.df is not None:
+    df = st.session_state.df
 
 # ------------------------
 # Phân tích và hiển thị
