@@ -2,13 +2,35 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from numba import njit
+import requests
 import io
+
+# ------------------------
+# Hàm chuẩn hóa link
+# ------------------------
+def normalize_url(url):
+    if "drive.google.com" in url:
+        file_id = None
+        if "id=" in url:
+            file_id = url.split("id=")[1].split("&")[0]
+        elif "/d/" in url:
+            file_id = url.split("/d/")[1].split("/")[0]
+        if file_id:
+            return f"https://drive.google.com/uc?export=download&id={file_id}"
+        else:
+            raise ValueError("Không tìm thấy ID hợp lệ từ Google Drive link.")
+    elif "dropbox.com" in url:
+        return url.replace("?dl=0", "?dl=1")
+    elif url.endswith(".csv"):
+        return url
+    else:
+        raise ValueError("Không nhận dạng được link hợp lệ.")
 
 # ------------------------
 # Load dữ liệu
 # ------------------------
-def load_data(uploaded_file):
-    df = pd.read_csv(uploaded_file, header=None)
+def load_data(file_like):
+    df = pd.read_csv(file_like, header=None)
     df.columns = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Volume']
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%Y.%m.%d %H:%M')
     for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
@@ -108,11 +130,35 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
 # ------------------------
 st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
-uploaded_file = st.file_uploader("📂 Tải lên file CSV dữ liệu (không có header):", type=["csv"])
+option = st.radio("📥 Chọn cách nhập dữ liệu:", ["📂 Tải lên file CSV", "🌐 Link đến file CSV", "📝 Dán nội dung CSV"])
 
-if uploaded_file is not None:
-    df = load_data(uploaded_file)
+df = None
+try:
+    if option == "📂 Tải lên file CSV":
+        uploaded_file = st.file_uploader("Tải file CSV dữ liệu (không có header):", type=["csv"])
+        if uploaded_file:
+            df = load_data(uploaded_file)
 
+    elif option == "🌐 Link đến file CSV":
+        url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
+        if url:
+            norm_url = normalize_url(url)
+            response = requests.get(norm_url)
+            response.raise_for_status()
+            df = load_data(io.StringIO(response.content.decode("utf-8")))
+
+    elif option == "📝 Dán nội dung CSV":
+        content = st.text_area("Dán nội dung CSV (raw text):")
+        if content:
+            df = load_data(io.StringIO(content))
+
+except Exception as e:
+    st.error(f"❌ Lỗi khi xử lý dữ liệu: {e}")
+
+# ------------------------
+# Phân tích và hiển thị
+# ------------------------
+if df is not None:
     open_, high, low, close = df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values
     ema = compute_ema(close, 50)
     rsi = compute_rsi(close, 14)
@@ -128,12 +174,11 @@ if uploaded_file is not None:
     st.info(f"🔼 BUY: {np.sum(types == 1)}")
     st.warning(f"🔽 SELL: {np.sum(types == 0)}")
 
-    # Hiển thị bảng tín hiệu
     signal_df = pd.DataFrame({
         'Datetime': df.index[valid][idxs],
         'Type': np.where(types == 1, 'BUY', 'SELL'),
         'Price': prices,
-        'Point': ['Open', 'High', 'Low', 'Close'][0:][points]
+        'Point': np.array(['Open', 'High', 'Low', 'Close'])[points]
     })
 
     st.dataframe(signal_df, use_container_width=True)
