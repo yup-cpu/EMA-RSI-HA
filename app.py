@@ -8,13 +8,22 @@ import io
 # ------------------------
 # Hàm chuẩn hóa link
 # ------------------------
+import re
+
 def normalize_url(url):
     if "drive.google.com" in url:
-        file_id = None
-        if "id=" in url:
-            file_id = url.split("id=")[1].split("&")[0]
-        elif "/d/" in url:
-            file_id = url.split("/d/")[1].split("/")[0]
+        match = re.search(r"(?:/d/|id=)([a-zA-Z0-9_-]+)", url)
+        if match:
+            file_id = match.group(1)
+            return f"https://drive.google.com/uc?export=download&id={file_id}"
+        else:
+            raise ValueError("Không tìm thấy ID Google Drive hợp lệ.")
+    elif "dropbox.com" in url:
+        return url.replace("?dl=0", "?dl=1")
+    elif url.endswith(".csv"):
+        return url
+    else:
+        raise ValueError("Không nhận dạng được loại link hợp lệ.")
         if file_id:
             return f"https://drive.google.com/uc?export=download&id={file_id}"
         else:
