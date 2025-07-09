@@ -37,7 +37,6 @@ def load_data_safe(file_like):
             content = content.decode("utf-8")
         else:
             raise ValueError("❌ Không thể giải mã nội dung file.")
-
     try:
         df = pd.read_csv(io.StringIO(content), header=None)
     except Exception as e:
@@ -129,7 +128,7 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
     count = 0
 
     for i in range(1, n):
-        if rsi[i] != rsi[i]:
+        if rsi[i] != rsi[i]:  # NaN check
             continue
         for j in range(4):
             price = ohlc[i, j]
@@ -146,7 +145,7 @@ def detect_signals_sequential(ohlc, ema50, rsi, ha, rsi_lo=30, rsi_hi=70):
 # ------------------------
 # Giao diện Streamlit
 # ------------------------
-st.title("\ud83d\udcc8 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
+st.title("📈 Chiến lược giao dịch: EMA50 + RSI14 + Heiken Ashi")
 
 if "confirmed" not in st.session_state:
     st.session_state.confirmed = False
@@ -155,27 +154,28 @@ if "data_source" not in st.session_state:
 if "df" not in st.session_state:
     st.session_state.df = None
 
-option = st.radio("\ud83d\udcc5 Chọn cách nhập dữ liệu:", ["\ud83d\udcc2 Tải lên file CSV", "\ud83c\udf10 Link đến file CSV", "\ud83d\udcdd Dán nội dung CSV"])
+option = st.radio("📥 Chọn cách nhập dữ liệu:", ["📂 Tải lên file CSV", "🌐 Link đến file CSV", "📝 Dán nội dung CSV"])
 
+# Reset lại trạng thái nếu đổi nguồn dữ liệu
 if st.session_state.data_source != option:
     st.session_state.confirmed = False
     st.session_state.df = None
     st.session_state.data_source = option
 
 try:
-    if option == "\ud83d\udcc2 Tải lên file CSV":
+    if option == "📂 Tải lên file CSV":
         uploaded_file = st.file_uploader("Tải file CSV dữ liệu (không có header):", type=["csv"])
         if uploaded_file:
             disabled = st.session_state.confirmed
-            if st.button("\ud83d\udcca Xác nhận & Phân tích", disabled=disabled):
+            if st.button("📊 Xác nhận & Phân tích", disabled=disabled):
                 st.session_state.df = load_data_safe(uploaded_file)
                 st.session_state.confirmed = True
 
-    elif option == "\ud83c\udf10 Link đến file CSV":
+    elif option == "🌐 Link đến file CSV":
         url = st.text_input("Dán link Google Drive / Dropbox / CSV:")
         if url:
             disabled = st.session_state.confirmed
-            if st.button("\ud83d\udcc5 Tải & Phân tích", disabled=disabled):
+            if st.button("📥 Tải & Phân tích", disabled=disabled):
                 try:
                     norm_url = normalize_url(url)
                     if "drive.google.com" in url:
@@ -190,11 +190,11 @@ try:
                 except Exception as e:
                     st.error(f"❌ Không thể tải hoặc đọc file từ link: {str(e)}")
 
-    elif option == "\ud83d\udcdd Dán nội dung CSV":
+    elif option == "📝 Dán nội dung CSV":
         content = st.text_area("Dán nội dung CSV (raw text):")
         if content:
             disabled = st.session_state.confirmed
-            if st.button("\ud83d\udcc1 Phân tích nội dung", disabled=disabled):
+            if st.button("📑 Phân tích nội dung", disabled=disabled):
                 st.session_state.df = load_data_safe(io.StringIO(content))
                 st.session_state.confirmed = True
 
